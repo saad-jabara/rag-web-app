@@ -8,10 +8,13 @@ from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from langchain_community.document_loaders import WebBaseLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain_community.vectorstores import Chroma
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
+from langchain.embeddings.base import Embeddings
+from typing import List
+import openai
 import logging
 
 # Load environment variables
@@ -33,6 +36,33 @@ rag_initialized = False
 # Verify OpenAI API key is set
 if not os.getenv("OPENAI_API_KEY"):
     logger.warning("OPENAI_API_KEY not set - RAG will not work. Set it in environment variables.")
+
+
+class CustomOpenAIEmbeddings(Embeddings):
+    """Custom OpenAI Embeddings wrapper to avoid the proxies parameter issue"""
+
+    def __init__(self, model="text-embedding-ada-002"):
+        self.model = model
+        self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        """Embed search docs."""
+        embeddings = []
+        for text in texts:
+            response = self.client.embeddings.create(
+                model=self.model,
+                input=text
+            )
+            embeddings.append(response.data[0].embedding)
+        return embeddings
+
+    def embed_query(self, text: str) -> List[float]:
+        """Embed query text."""
+        response = self.client.embeddings.create(
+            model=self.model,
+            input=text
+        )
+        return response.data[0].embedding
 
 
 def initialize_rag_system():
@@ -81,7 +111,7 @@ def initialize_rag_system():
 
         # Step 3: Create embeddings and vector store
         logger.info("Creating embeddings and building vector store...")
-        embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
+        embeddings = CustomOpenAIEmbeddings(model="text-embedding-ada-002")
 
         vectorstore = Chroma.from_documents(
             documents=chunks,
