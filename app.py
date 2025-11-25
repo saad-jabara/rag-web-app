@@ -28,19 +28,27 @@ logger = logging.getLogger(__name__)
 # Global variables for RAG chain
 qa_chain = None
 vectorstore = None
+rag_initialized = False
 
 # Verify OpenAI API key is set
 if not os.getenv("OPENAI_API_KEY"):
-    raise ValueError("Please set OPENAI_API_KEY in your .env file")
+    logger.warning("OPENAI_API_KEY not set - RAG will not work. Set it in environment variables.")
 
 
 def initialize_rag_system():
-    """Initialize the RAG system on startup"""
-    global qa_chain, vectorstore
+    """Initialize the RAG system (lazy-loaded on first request)"""
+    global qa_chain, vectorstore, rag_initialized
 
-    logger.info("Initializing RAG System...")
+    if rag_initialized:
+        return True
+
+    logger.info("Initializing RAG System (this may take 1-2 minutes on first request)...")
 
     try:
+        if not os.getenv("OPENAI_API_KEY"):
+            logger.error("OPENAI_API_KEY not set!")
+            return False
+
         # Step 1: Load documents
         logger.info("Loading documents from Basecamp Employee Handbook...")
         basecamp_urls = [
@@ -112,6 +120,7 @@ Answer:"""
             chain_type_kwargs={"prompt": PROMPT}
         )
 
+        rag_initialized = True
         logger.info("RAG System initialized successfully!")
         return True
 
@@ -136,8 +145,20 @@ def query():
         if not question:
             return jsonify({"error": "Question cannot be empty"}), 400
 
+        # Initialize RAG system if not already done (lazy loading)
+        if not rag_initialized:
+            logger.info("First query received - initializing RAG system...")
+            if not initialize_rag_system():
+                return jsonify({
+                    "error": "Failed to initialize RAG system. Check that OPENAI_API_KEY is set.",
+                    "status": "error"
+                }), 500
+
         if qa_chain is None:
-            return jsonify({"error": "RAG system not initialized"}), 500
+            return jsonify({
+                "error": "RAG system initialization failed",
+                "status": "error"
+            }), 500
 
         logger.info(f"Processing question: {question}")
         result = qa_chain.invoke({"query": question})
@@ -168,15 +189,12 @@ def health():
     """Health check endpoint"""
     return jsonify({
         "status": "healthy",
-        "rag_system": "initialized" if qa_chain is not None else "not initialized"
+        "rag_system": "initialized" if rag_initialized else "not_initialized_yet",
+        "message": "App is running. RAG will initialize on first query."
     })
 
 
 if __name__ == "__main__":
-    # Initialize RAG system on startup
-    if initialize_rag_system():
-        logger.info("Starting Flask application...")
-        app.run(debug=True, host="0.0.0.0", port=5000)
-    else:
-        logger.error("Failed to initialize RAG system. Exiting.")
-        exit(1)
+    logger.info("Starting Flask application...")
+    logger.info("RAG system will initialize on first query (lazy loading)")
+    app.run(debug=True, host="0.0.0.0", port=5000)

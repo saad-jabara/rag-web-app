@@ -131,6 +131,13 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            flex-direction: column;
+        }
+
+        .loading-text {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .spinner {
@@ -141,6 +148,13 @@
             border-top: 3px solid #667eea;
             border-radius: 50%;
             animation: spin 1s linear infinite;
+        }
+
+        .loading-note {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+            font-style: italic;
         }
 
         @keyframes spin {
@@ -279,6 +293,7 @@
     <script>
         const chatArea = document.getElementById('chatArea');
         const questionInput = document.getElementById('questionInput');
+        let isFirstQuery = true;
 
         async function askQuestion(question) {
             questionInput.value = question;
@@ -299,8 +314,14 @@
             // Add user message to chat
             addMessage(question, 'user');
 
-            // Show loading message
-            const loadingId = addMessage('Thinking...', 'assistant', true);
+            // Show loading message with first-query warning
+            let loadingMsg = 'Searching handbook...';
+            if (isFirstQuery) {
+                loadingMsg = '<div class="loading-text"><span class="spinner"></span><span>Initializing (may take 1-2 min)...</span></div><div class="loading-note">Building knowledge base on first query</div>';
+            } else {
+                loadingMsg = '<div class="loading"><div class="loading-text"><span class="spinner"></span><span>Searching...</span></div></div>';
+            }
+            const loadingId = addMessage(loadingMsg, 'assistant', true);
 
             try {
                 const response = await fetch('/api/query', {
@@ -332,10 +353,12 @@
                     }
 
                     addMessage(messageContent, 'assistant', false, data.sources);
+                    isFirstQuery = false; // Mark first query as done
                 }
             } catch (error) {
                 removeMessage(loadingId);
                 addMessage(`Error: ${error.message}`, 'assistant');
+                isFirstQuery = false; // Mark first query as done even if it failed
             }
 
             questionInput.focus();
@@ -356,7 +379,7 @@
             contentDiv.className = 'message-content';
 
             if (isLoading) {
-                contentDiv.innerHTML = '<div class="loading"><span class="spinner"></span><span>Searching handbook...</span></div>';
+                contentDiv.innerHTML = '<div class="loading">' + text + '</div>';
             } else if (role === 'assistant' && sources.length > 0) {
                 contentDiv.innerHTML = text.replace(/---SOURCES---[\s\S]*/g, '');
 
