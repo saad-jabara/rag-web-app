@@ -43,26 +43,29 @@ class CustomOpenAIEmbeddings(Embeddings):
 
     def __init__(self, model="text-embedding-ada-002"):
         self.model = model
-        self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        # Set API key for openai library (compatible with 1.12.0)
+        openai.api_key = os.getenv("OPENAI_API_KEY")
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Embed search docs."""
         embeddings = []
         for text in texts:
-            response = self.client.embeddings.create(
+            # Use the older API format for openai 1.12.0
+            response = openai.Embedding.create(
                 model=self.model,
                 input=text
             )
-            embeddings.append(response.data[0].embedding)
+            embeddings.append(response['data'][0]['embedding'])
         return embeddings
 
     def embed_query(self, text: str) -> List[float]:
         """Embed query text."""
-        response = self.client.embeddings.create(
+        # Use the older API format for openai 1.12.0
+        response = openai.Embedding.create(
             model=self.model,
             input=text
         )
-        return response.data[0].embedding
+        return response['data'][0]['embedding']
 
 
 def initialize_rag_system():
