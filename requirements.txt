@@ -1,8 +1,8 @@
 Flask==3.0.0
 Flask-CORS==4.0.0
-langchain==0.1.14
-langchain-community==0.0.30
-langchain-openai==0.1.0
+langchain==0.2.11
+langchain-community==0.2.11
+langchain-openai==0.2.1
 chromadb==0.4.22
 openai==1.42.0
 python-dotenv==1.0.1
